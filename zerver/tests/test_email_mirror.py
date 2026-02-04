@@ -50,7 +50,7 @@ from zerver.lib.send_email import FromAddress
 from zerver.lib.streams import ensure_stream
 from zerver.lib.test_classes import ZulipTestCase
 from zerver.lib.test_helpers import most_recent_message, most_recent_usermessage
-from zerver.models import Attachment, Recipient, Stream, UserProfile
+from zerver.models import Attachment, Recipient, Stream, UserMessage, UserProfile
 from zerver.models.groups import NamedUserGroup, SystemGroups
 from zerver.models.messages import Message
 from zerver.models.realms import get_realm
@@ -515,6 +515,36 @@ class TestStreamEmailMessages(ZulipTestCase):
         )
         self.assert_message_stream_name(message, stream.name)
         self.assertEqual(message.topic_name(), incoming_valid_message["Subject"])
+
+    def test_receive_stream_email_silences_wildcard_mentions(self) -> None:
+        user_profile = self.example_user("hamlet")
+        self.login_user(user_profile)
+        self.subscribe(user_profile, "Denmark")
+        stream = get_stream("Denmark", user_profile.realm)
+
+        email_token = get_channel_email_token(stream, creator=user_profile, sender=user_profile)
+        stream_to_address = encode_email_address(stream.name, email_token)
+
+        incoming_valid_message = EmailMessage()
+        incoming_valid_message.set_content(
+            "Hello @**all** and @**stream** and @**topic**! email notify@**channel**.example should stay. abc@123.com"
+        )
+        incoming_valid_message["Subject"] = "Wildcards"
+        incoming_valid_message["From"] = self.example_email("hamlet")
+        incoming_valid_message["To"] = stream_to_address
+        incoming_valid_message["Reply-to"] = self.example_email("othello")
+
+        process_message(incoming_valid_message)
+
+        message = most_recent_message(user_profile)
+        self.assertEqual(
+            message.content,
+            "Hello @_**all** and @_**stream** and @_**topic**! email notify@**channel**.example should stay. abc@123.com",
+        )
+
+        usermessage = most_recent_usermessage(user_profile)
+        self.assertFalse(usermessage.flags.stream_wildcard_mentioned)
+    
 
     def test_receive_stream_email_forwarded_success(self) -> None:
         msgtext = """
