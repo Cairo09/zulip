@@ -198,12 +198,11 @@ def construct_zulip_body(
 ## Sending the Zulip ##
 
 
-_EMAIL_WILDCARD_ALTERNATION = "|".join(
+EMAIL_WILDCARD_ALTERNATION = "|".join(
     sorted(stream_wildcards | topic_wildcards, key=len, reverse=True)
 )
 EMAIL_WILDCARD_RE = re.compile(
-    rf"{BEFORE_MENTION_ALLOWED_REGEX}@(?P<silent>_?)(\*\*(?P<wildcard>{_EMAIL_WILDCARD_ALTERNATION})\*\*)",
-    re.IGNORECASE,
+    rf"{BEFORE_MENTION_ALLOWED_REGEX}@(?P<silent>_?)(\*\*(?P<wildcard>{EMAIL_WILDCARD_ALTERNATION})\*\*)",
 )
 
 
@@ -219,7 +218,7 @@ def _silence_email_gateway_wildcards(content: str) -> str:
 
 
 def send_zulip(sender: UserProfile, stream: Stream, topic_name: str, content: str) -> None:
-    sanitized_content = _silence_email_gateway_wildcards(content)
+    sanitized_content = silence_email_gateway_wildcards(content)
     internal_send_stream_message(
         sender,
         stream,
